@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Starts Hammerspoon in the background at login so the voice launcher is always ready.
+  install.sh replaces __LABEL__ (com.<user>.hammerspoon-autostart) and installs it to
+  ~/Library/LaunchAgents/__LABEL__.plist, then loads it with launchctl bootstrap.
+  Why a LaunchAgent: adding a Login Item via System Events needs an Apple Events
+  (Automation) permission that is often blocked; a LaunchAgent needs none.
+  `open -g` = launch without stealing focus; harmless if Hammerspoon is already running.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>__LABEL__</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/open</string>
+    <string>-g</string>
+    <string>-a</string>
+    <string>Hammerspoon</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+</dict>
+</plist>

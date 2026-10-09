@@ -1,0 +1,130 @@
+{
+  "_help": "Edit freely; changes apply on the next command (no reload). Only ids in this list can ever be opened. Fields: id (unique, lowercase-dashes), name (what you'd say), aliases (other spoken names; a leading 'open'/'the' is ignored, so don't add 'open X'), description (helps Grok tell similar entries apart, e.g. which app), type 'app' (value = app name as in /Applications) or 'url' (value = any link or app deep link). Optional 'disabled': true hides an entry. Optional 'activate' (url entries): bundle id that should open the link AND come to the front, e.g. com.apple.systempreferences for System Settings panes. Optional 'press' (app entries): {title, role, timeout} = after opening the app, click the UI element with exactly that label via Accessibility (for things with no deep link, e.g. a pinned sidebar item). Keep names/aliases unique across entries (check status.txt for 'alias collisions'). Back up and validate the JSON before saving.",
+  "models": ["grok-4.20-0309-non-reasoning", "grok-4.3"],
+  "routerNotes": "Optional extra rule for the router, e.g. 'Work means Slack, chat with family means WhatsApp.'",
+  "destinations": [
+    {
+      "id": "slack",
+      "name": "Slack",
+      "aliases": ["work chat"],
+      "description": "Slack desktop app",
+      "type": "app",
+      "value": "Slack"
+    },
+    {
+      "id": "system-settings",
+      "name": "System Settings",
+      "aliases": ["settings", "preferences"],
+      "description": "macOS System Settings (main window)",
+      "type": "app",
+      "value": "System Settings"
+    },
+    {
+      "id": "bluetooth-settings",
+      "name": "Bluetooth settings",
+      "aliases": ["bluetooth", "bluetooth menu", "BT"],
+      "description": "macOS System Settings → Bluetooth pane",
+      "type": "url",
+      "value": "x-apple.systempreferences:com.apple.BluetoothSettings",
+      "activate": "com.apple.systempreferences"
+    },
+    {
+      "id": "wifi-settings",
+      "name": "Wi-Fi settings",
+      "aliases": ["wifi", "wi fi", "wireless"],
+      "description": "macOS System Settings → Wi-Fi pane",
+      "type": "url",
+      "value": "x-apple.systempreferences:com.apple.wifi-settings-extension",
+      "activate": "com.apple.systempreferences"
+    },
+    {
+      "id": "siri-settings",
+      "name": "Siri settings",
+      "aliases": ["siri", "apple intelligence settings"],
+      "description": "macOS System Settings → Apple Intelligence & Siri pane (change 'Listen for')",
+      "type": "url",
+      "value": "x-apple.systempreferences:com.apple.Siri-Settings.extension",
+      "activate": "com.apple.systempreferences"
+    },
+    {
+      "id": "gmail",
+      "name": "Gmail",
+      "aliases": ["email in browser", "google mail"],
+      "description": "Website, opens in the default browser",
+      "type": "url",
+      "value": "https://mail.google.com/"
+    },
+    {
+      "id": "claude",
+      "name": "Claude",
+      "aliases": ["claude app"],
+      "description": "Claude desktop app",
+      "type": "app",
+      "value": "Claude"
+    },
+    {
+      "id": "claude-project-example",
+      "name": "Claude project: Example",
+      "aliases": ["example project", "Claude example"],
+      "description": "Claude desktop project (opens inside the Claude app). Replace <uuid> with the id from a claude.ai/project/<uuid> address",
+      "type": "url",
+      "value": "claude://claude.ai/project/00000000-0000-0000-0000-000000000000",
+      "disabled": true
+    },
+    {
+      "id": "claude-chat-example",
+      "name": "Claude chat: Example",
+      "aliases": ["example chat"],
+      "description": "One Claude conversation (opens inside the Claude app). claude://claude.ai/chat/<uuid> works; https://claude.ai/... opens the browser instead",
+      "type": "url",
+      "value": "claude://claude.ai/chat/00000000-0000-0000-0000-000000000000",
+      "disabled": true
+    },
+    {
+      "id": "claude-sidebar-dashboard-example",
+      "name": "Dashboard",
+      "aliases": ["my dashboard", "Claude dashboard"],
+      "description": "Claude desktop → pinned sidebar item 'My Dashboard' (no deep link exists; launches Claude if needed and clicks the item; needs Accessibility permission)",
+      "type": "app",
+      "value": "Claude",
+      "press": { "title": "My Dashboard", "role": "AXButton", "timeout": 15 },
+      "disabled": true
+    },
+    {
+      "id": "chatgpt-project-example",
+      "name": "ChatGPT project: Example",
+      "aliases": ["example GPT project"],
+      "description": "ChatGPT project (opens chatgpt.com in the browser; the ChatGPT desktop app has no link that opens a project). Copy the address while the project is open",
+      "type": "url",
+      "value": "https://chatgpt.com/g/g-p-REPLACE_ME/project",
+      "disabled": true
+    },
+    {
+      "id": "grok-bot-chat-example",
+      "name": "Grok Bot: Example bot",
+      "aliases": ["example bot"],
+      "description": "A specific Grok Bot chat (opens the Grok Bot app by itself). Replace <agent id>",
+      "type": "url",
+      "value": "grokbot://app/v1/agent?id=00000000-0000-0000-0000-000000000000",
+      "disabled": true
+    },
+    {
+      "id": "downloads-folder",
+      "name": "Downloads folder",
+      "aliases": ["downloads"],
+      "description": "Finder window on ~/Downloads (file:// URLs open in Finder; use the full path)",
+      "type": "url",
+      "value": "file:///Users/REPLACE_ME/Downloads/",
+      "disabled": true
+    },
+    {
+      "id": "run-shortcut-example",
+      "name": "Focus mode shortcut",
+      "aliases": ["focus mode"],
+      "description": "Runs the macOS Shortcut named 'Focus Mode'",
+      "type": "url",
+      "value": "shortcuts://run-shortcut?name=Focus%20Mode",
+      "disabled": true
+    }
+  ]
+}
