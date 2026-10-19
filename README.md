@@ -20,6 +20,8 @@ Cmd+Shift+Space  ─┐
                      open up to 4 destinations in order
 ```
 
+**Chrome tabs.** Say **"YouTube tab"**, **"go to my Gmail tab"** or **"switch to the YT one"** and the launcher jumps to that already-open Google Chrome tab. It works across windows, displays and Chrome profiles. Common nicknames (YT, Gmail, Docs, Sheets, X, GH…) and words from tab titles match offline. Anything unclear goes to Grok, along with a short list of your tabs. If Chrome isn't running or no tab fits, the normal destinations are used, so "YouTube tab" can still open a YouTube entry.
+
 **Demo flow**
 1. Press **Cmd+Shift+Space** (or say **"Hey Siri, Voice Launcher"** for hands-free).
 2. Say **"bluetooth"**. System Settings comes to the front on the Bluetooth page.
@@ -34,6 +36,7 @@ Cmd+Shift+Space  ─┐
 - **Grok Bot chats:** `grokbot://` links.
 - **Folders and macOS Shortcuts.**
 - **Sidebar items with no link,** which the launcher clicks through Accessibility.
+- **Open Chrome tabs** (no entry needed; see above).
 
 See [`destinations.example.json`](destinations.example.json) for an example of each.
 
@@ -56,7 +59,7 @@ The installer:
 - sets Hammerspoon to start at login and loads the launcher;
 - then asks you to add your xAI key at a hidden `security` prompt. The script never sees the key.
 
-Next, do the few one-time steps in [SETUP-NOTES.md](SETUP-NOTES.md): Accessibility permission, API key, Wispr Flow, and the Siri Shortcut.
+Next, do the few one-time steps in [SETUP-NOTES.md](SETUP-NOTES.md): Accessibility permission, API key, Wispr Flow, the Siri Shortcut, and (for tab switching) allowing Hammerspoon to control Google Chrome.
 
 Options: `--languages "English, Spanish"`, `--rebuild-destinations`, `--no-autostart`, `--no-reload`, `--yes`, `--uninstall`.
 
@@ -80,11 +83,13 @@ Bots and humans should read [LESSONS.md](LESSONS.md) before changing anything. I
 | `com.USER.hammerspoon-autostart.plist` | Start-at-login template |
 | `SETUP-NOTES.md` | Steps only you can do |
 | `LESSONS.md` | Gotchas and fixes |
+| `tests/tab-match-test.lua` | Offline test of the tab matching (`lua tests/tab-match-test.lua`) |
 
 ## Privacy
 - Your API key stays in the Keychain and is read at call time. It is never logged or written to a file.
 - The log records text lengths and ids, not what you said.
 - Only exact-match misses are sent to xAI, along with your destination names and descriptions.
+- Chrome tabs are read only when Chrome is already running. Only titles and URLs are read: never page content, and no JavaScript is ever run in a page. Grok gets at most 50 tabs, each with a title cut to 60 characters and the host plus first path segment (no full URLs, no query strings). The log records tab counts and ids such as `tab:2:5`, never titles.
 
 ## License
 MIT © 2026 EVwire

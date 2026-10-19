@@ -4,7 +4,8 @@
 -- one-line text box -> you dictate (Wispr Flow by default) -> after a short pause the
 -- text is matched against ~/.voice-launcher/destinations.json. An exact name/alias match
 -- opens locally (no network); otherwise Grok picks ids FROM THAT LIST ONLY. Nothing that
--- is not listed in destinations.json can ever be opened.
+-- is not listed in destinations.json can ever be opened. The one addition: "YouTube tab",
+-- "switch to my Gmail tab" switch to an ALREADY-OPEN Google Chrome tab (see "Chrome tabs").
 --
 -- Privacy: the xAI key is read from the macOS Keychain on each call, never logged or
 -- stored. The log records lengths, ids and timings, never what you said (unless you set
@@ -180,15 +181,275 @@ local function parseIds(content, cfg)
     end
     if #out >= MAX_DESTINATIONS then break end
   end
+  for _, d in ipairs(out) do if d.type == "tab" then return { d } end end
   return out
+end
+
+local TAB_LOG = LOG_FILE
+---------------------------------------------------------------------------------------
+-- Chrome tabs: "YouTube tab", "go to my Gmail tab", "switch to the YT one".
+-- Lists open Google Chrome tabs (all windows, all profiles) with AppleScript, ONLY when
+-- Chrome is already running. Reads tab titles and URLs only: never page content, never
+-- runs JavaScript in pages. Grok only ever sees truncated titles + host/first path segment.
+-- First use: macOS asks "Hammerspoon wants to control Google Chrome" -> click Allow
+-- (System Settings > Privacy & Security > Automation > Hammerspoon > Google Chrome).
+---------------------------------------------------------------------------------------
+local TABS_ENABLED       = true
+local CHROME_BUNDLE      = "com.google.Chrome"
+local TAB_LIMIT_FOR_GROK = 50     -- at most this many tabs are offered to Grok
+local TAB_TITLE_MAX      = 60     -- titles are cut to this many characters for Grok
+
+-- [tabs-pure-begin] (plain Lua, no hs.*: unit-testable outside Hammerspoon)
+local TAB = {}
+-- words that mean "an open tab" (any language you dictate in)
+TAB.INTENT_WORDS   = { "tab", "tabs", "vaheleht", "vahelehte", "vahelehele", "vahekaart" }
+TAB.INTENT_PHRASES = { "switch to", "switch back to", "go back to", "jump to" }
+-- removed from the query before matching tab titles / hosts
+TAB.FILLERS = { "please", "open", "go", "to", "back", "switch", "jump", "over", "my", "the", "a",
+  "that", "this", "one", "tab", "tabs", "chrome", "in", "on", "page", "window", "show", "me",
+  "vaheleht", "vahelehte", "vahelehele", "vahekaart", "mine", "ava", "minu" }
+-- spoken nickname -> fragment of "host/path" (host without www.)
+TAB.NICKNAMES = {
+  yt = "youtube.com", youtube = "youtube.com", ["you tube"] = "youtube.com",
+  gmail = "mail.google.com", ["g mail"] = "mail.google.com", ["google mail"] = "mail.google.com",
+  drive = "drive.google.com", gdrive = "drive.google.com", ["google drive"] = "drive.google.com",
+  docs = "docs.google.com/document", ["google docs"] = "docs.google.com/document",
+  sheets = "docs.google.com/spreadsheets", ["google sheets"] = "docs.google.com/spreadsheets",
+  slides = "docs.google.com/presentation", ["google slides"] = "docs.google.com/presentation",
+  calendar = "calendar.google.com", gcal = "calendar.google.com", ["google calendar"] = "calendar.google.com",
+  maps = "google.com/maps", ["google maps"] = "google.com/maps",
+  analytics = "analytics.google.com", ["google analytics"] = "analytics.google.com", ga = "analytics.google.com",
+  ["search console"] = "search.google.com/search-console", gsc = "search.google.com/search-console",
+  x = "x.com", twitter = "x.com", gh = "github.com", github = "github.com",
+  linkedin = "linkedin.com", ["linked in"] = "linkedin.com", fb = "facebook.com", facebook = "facebook.com",
+  ig = "instagram.com", insta = "instagram.com", instagram = "instagram.com", reddit = "reddit.com",
+  chatgpt = "chatgpt.com", ["chat gpt"] = "chatgpt.com", gpt = "chatgpt.com", claude = "claude.ai",
+  grok = "grok.com", gemini = "gemini.google.com", notion = "notion.so", figma = "figma.com",
+  wiki = "wikipedia.org", wikipedia = "wikipedia.org", netflix = "netflix.com",
+}
+
+local function tnorm(s)
+  s = (s or ""):lower():gsub("[%p]", " "):gsub("%s+", " ")
+  return (s:gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+function TAB.hostPath(url) -- "https://www.youtube.com/watch?v=x" -> "youtube.com", "/watch"
+  local host, path = (url or ""):match("^%a[%w+.-]*://([^/?#]*)([^?#]*)")
+  if not host then return "", "" end
+  host = host:lower():gsub("^www%.", ""):gsub(":%d+$", "")
+  return host, (path:match("^/[^/]*") or "")
+end
+
+function TAB.intent(text)
+  local t = " " .. tnorm(text) .. " "
+  for _, w in ipairs(TAB.INTENT_WORDS) do if t:find(" " .. w .. " ", 1, true) then return true end end
+  for _, p in ipairs(TAB.INTENT_PHRASES) do if t:find(" " .. p .. " ", 1, true) then return true end end
+  return false
+end
+
+function TAB.query(text) -- "go to my Gmail tab" -> "gmail"
+  local fill = {}
+  for _, w in ipairs(TAB.FILLERS) do fill[w] = true end
+  local out = {}
+  for w in tnorm(text):gmatch("%S+") do if not fill[w] then out[#out + 1] = w end end
+  return table.concat(out, " ")
+end
+
+local function score(q, t)
+  local host, path = TAB.hostPath(t.url)
+  local hp = host .. path
+  local nick = TAB.NICKNAMES[q]
+  if nick then return hp:find(nick, 1, true) and 100 or 0 end
+  local title = tnorm(t.title)
+  local qs = q:gsub(" ", "")
+  if title == q then return 95 end
+  for label in host:gmatch("[^.]+") do
+    if #qs >= 2 and label == qs and label ~= "com" and label ~= "www" then return 90 end
+  end
+  if (" " .. title .. " "):find(" " .. q .. " ", 1, true) then return 80 end
+  if #qs >= 4 and host:find(qs, 1, true) then return 70 end
+  local words, n, hits = {}, 0, 0
+  for w in title:gmatch("%S+") do words[w] = true end
+  for w in q:gmatch("%S+") do n = n + 1; if words[w] or host:find(w, 1, true) then hits = hits + 1 end end
+  if n >= 2 and hits == n then return 60 end
+  return 0
+end
+
+-- tabs: list in Chrome's window order (front window first) with fields
+-- w, t (indexes), wid, tid (ids), title, url, active (bool).
+-- Returns tab, "ok" | nil, "none" | nil, "ambiguous"
+function TAB.match(query, tabs)
+  local q = tnorm(query)
+  if q == "" then return nil, "none" end
+  local best, cands = 0, {}
+  for _, t in ipairs(tabs or {}) do
+    local s = score(q, t)
+    if s > best then best, cands = s, { t } elseif s == best and s > 0 then cands[#cands + 1] = t end
+  end
+  if best < 60 then return nil, "none" end
+  local host1 = TAB.hostPath(cands[1].url)
+  for _, c in ipairs(cands) do -- tie across different sites: let Grok decide
+    if TAB.hostPath(c.url) ~= host1 then return nil, "ambiguous" end
+  end
+  -- same site in several tabs: frontmost window that has one; in it, its active tab if it matches
+  for _, c in ipairs(cands) do if c.w == cands[1].w and c.active then return c, "ok" end end
+  return cands[1], "ok"
+end
+
+function TAB.grokLines(tabs, maxN, titleMax) -- "- id=tab:1:3 | <title> | youtube.com/watch"
+  local lines = {}
+  for i, t in ipairs(tabs or {}) do
+    if i > maxN then break end
+    local host, path = TAB.hostPath(t.url)
+    local title = (t.title or ""):gsub("[%c|]", " ")
+    if #title > titleMax then title = title:sub(1, titleMax):gsub("[\128-\191]*$", ""):gsub("[\192-\255]$", "") .. "…" end
+    lines[#lines + 1] = string.format("- id=tab:%d:%d | %s | %s%s", t.w, t.t, title, host, path)
+  end
+  return lines
+end
+-- [tabs-pure-end]
+
+local function tlog(msg)
+  local f = io.open(TAB_LOG, "a")
+  if f then f:write(os.date("%Y-%m-%d %H:%M:%S") .. " " .. msg .. "\n"); f:close() end
+end
+
+local US, RS = string.char(31), string.char(30)
+local LIST_TABS = [[
+tell application id "com.google.Chrome"
+  set wids to id of every window
+  set acts to active tab index of every window
+  set tids to id of every tab of every window
+  set tts to title of every tab of every window
+  set tus to URL of every tab of every window
+end tell
+set US to ASCII character 31
+set recs to {}
+repeat with wi from 1 to count of wids
+  set tl to item wi of tids
+  repeat with ti from 1 to count of tl
+    try
+      set end of recs to (wi as text) & US & ti & US & (item wi of wids) & US & (item ti of tl) & US & (item wi of acts) & US & (item ti of item wi of tts as text) & US & (item ti of item wi of tus as text)
+    end try
+  end repeat
+end repeat
+set AppleScript's text item delimiters to (ASCII character 30)
+set out to recs as text
+set AppleScript's text item delimiters to ""
+return out]]
+
+-- nil when Chrome isn't running / not allowed; otherwise a (possibly empty) list
+function TAB.list()
+  if not TABS_ENABLED or not hs.application.get(CHROME_BUNDLE) then return nil end
+  local t0 = hs.timer.secondsSinceEpoch()
+  local ok, out, desc = hs.osascript.applescript(LIST_TABS)
+  if not ok or type(out) ~= "string" then
+    local code = type(desc) == "table" and desc.NSAppleScriptErrorNumber
+    tlog("tabs: listing failed" .. (code and (" (error " .. tostring(code) .. (code == -1743 and ", Automation not allowed" or "") .. ")") or ""))
+    if code == -1743 then
+      hs.alert.show("Allow Hammerspoon to control Google Chrome: System Settings › Privacy & Security › Automation", 4)
+    end
+    return nil
+  end
+  local tabs = {}
+  for rec in out:gmatch("([^" .. RS .. "]+)") do
+    local f = {}
+    for v in (rec .. US):gmatch("(.-)" .. US) do f[#f + 1] = v end
+    if #f >= 7 then
+      tabs[#tabs + 1] = { w = tonumber(f[1]), t = tonumber(f[2]), wid = f[3], tid = f[4],
+        active = (f[5] == f[2]), title = f[6], url = table.concat(f, US, 7) }
+    end
+  end
+  tlog(string.format("tabs: listed %d in %dms", #tabs, math.floor((hs.timer.secondsSinceEpoch() - t0) * 1000)))
+  return tabs
+end
+
+function TAB.dest(t)
+  return { id = string.format("tab:%d:%d", t.w, t.t), type = "tab", tab = t,
+    name = "tab: " .. ((#t.title > 40) and (t.title:sub(1, 40):gsub("[\128-\191]*$", ""):gsub("[\192-\255]$", "") .. "…") or t.title) }
+end
+
+function TAB.switch(t)
+  -- Chrome may report ids as text or numbers: compare them as text
+  local src = string.format([[
+tell application id "com.google.Chrome"
+  set wl to id of every window
+  set w to missing value
+  repeat with k from 1 to count of wl
+    if (item k of wl as text) is "%s" then set w to window k
+  end repeat
+  if w is missing value then return "gone"
+  set tl to id of every tab of w
+  set found to 0
+  repeat with i from 1 to count of tl
+    if (item i of tl as text) is "%s" then set found to i
+  end repeat
+  if found is 0 then return "gone"
+  if minimized of w then set minimized of w to false
+  set active tab index of w to found
+  set index of w to 1
+  set AppleScript's text item delimiters to ","
+  set b to (bounds of w) as text
+  set AppleScript's text item delimiters to ""
+  return "ok," & b
+end tell]], tostring(t.wid):gsub("[^%w%.%-]", ""), (tostring(t.tid):gsub("[^%w%.%-]", "")))
+  local ok, res = hs.osascript.applescript(src)
+  local status = ok and type(res) == "string" and res:match("^(%a+)") or "error"
+  tlog("tab switch tab:" .. t.w .. ":" .. t.t .. " -> " .. status)
+  if status ~= "ok" then hs.alert.show("That Chrome tab is gone", 2); return end
+  res = res:gsub("\226\136\146", "-") -- AppleScript may write negatives with U+2212
+  local x1, y1, x2, y2 = res:match("^ok,(%-?%d+),(%-?%d+),(%-?%d+),(%-?%d+)")
+  hs.timer.doAfter(0.15, function()
+    -- bring THAT window forward (other display / Space / profile): find it by its frame,
+    -- which AppleScript and Hammerspoon both give in top-left-origin screen points
+    local app = hs.application.get(CHROME_BUNDLE)
+    if not app then return end
+    if x1 then
+      x1, y1, x2, y2 = tonumber(x1), tonumber(y1), tonumber(x2), tonumber(y2)
+      for _, win in ipairs(app:allWindows()) do
+        local fr = win:frame()
+        if math.abs(fr.x - x1) <= 3 and math.abs(fr.y - y1) <= 3 and math.abs(fr.w - (x2 - x1)) <= 3
+           and math.abs(fr.h - (y2 - y1)) <= 3 then
+          win:focus(); return
+        end
+      end
+    end
+    local want = (t.title or ""):sub(1, 30) -- fallback: window title = its active tab's title
+    for _, win in ipairs(app:allWindows()) do
+      if want ~= "" and (win:title() or ""):sub(1, #want) == want then win:focus(); return end
+    end
+    app:activate()
+  end)
+end
+
+local function addTabChoices(messages, tabs)
+  if not tabs or #tabs == 0 then return end
+  messages[1].content = messages[1].content .. "\n\nOpen Google Chrome tabs (extra choices). Pick ONE tab id, " ..
+    "alone, when the user wants to switch to an already-open tab (they say tab, switch to, go back to, " ..
+    "\"the X one\"), or when no destination fits but one tab clearly does. Otherwise prefer destinations.\n" ..
+    table.concat(TAB.grokLines(tabs, TAB_LIMIT_FOR_GROK, TAB_TITLE_MAX), "\n")
 end
 
 -- callback(dests, err, via) ; via = "local" or the model name
 function M.resolve(text, callback)
   local cfg, err = loadConfig()
   if not cfg then return callback(nil, err) end
-  local hit = cfg.names[normalize(text)]
+  local function exact(s) return cfg.names[normalize(s)] end
+  local hit = exact(text)
   if hit then return callback({ hit }, nil, "local") end -- exact name/alias: no API call
+  -- Chrome tabs: listed only if Chrome is running; "YouTube tab" etc. switch locally
+  local tabs = TAB.list()
+  if TAB.intent(text) then
+    local q = TAB.query(text)
+    local why = "none"
+    if tabs then
+      local t; t, why = TAB.match(q, tabs)
+      if t then return callback({ TAB.dest(t) }, nil, "local-tab") end
+    end
+    local h = (why == "none" and q ~= "") and exact(q) -- no such tab: "YouTube tab" -> YouTube destination
+    if h then return callback({ h }, nil, "local") end
+  end
+  for _, t in ipairs(tabs or {}) do cfg.byId["tab:" .. t.w .. ":" .. t.t] = TAB.dest(t) end
 
   local key = getKey()
   if not key then
@@ -197,6 +458,7 @@ function M.resolve(text, callback)
   local headers = { ["Content-Type"] = "application/json", ["Authorization"] = "Bearer " .. key }
   key = nil
   local messages = buildMessages(cfg, text)
+  addTabChoices(messages, tabs)
   local done = false
   local watchdog = hs.timer.doAfter(REQUEST_TIMEOUT, function()
     if not done then done = true; callback(nil, "Grok API not answering") end
@@ -322,6 +584,8 @@ local function openOne(d)
     else
       hs.urlevent.openURL(d.value)
     end
+  elseif d.type == "tab" then
+    TAB.switch(d.tab)
   end
 end
 

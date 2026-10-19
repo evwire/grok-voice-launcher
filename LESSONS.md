@@ -52,6 +52,17 @@ Each item is a mistake we hit or a decision that worked. The kit already follows
 - Folders: `file:///full/path/`. Shortcuts: `shortcuts://run-shortcut?name=<url-encoded name>`.
 - App entries use the app's name as shown in /Applications. `launchOrFocus` is used, with `open -a` as the fallback.
 
+## Chrome tabs
+- **List tabs with bulk Apple events.** Looping `repeat with tb in tabs of w` costs one Apple event per property per tab. For 324 tabs in 10 windows that took **13.7 s**, and `hs.osascript` blocks Hammerspoon while it runs. Asking for `id/title/URL of every tab of every window` (5 events in total) took **~0.2 s**. Do the same when looking a tab up to switch to it (`id of every tab of w`).
+- **Compare Chrome window and tab ids as text.** Matching a tab id against a number failed silently ("gone"), so convert both sides to text.
+- **`set index of w to 1` does not reliably bring a window forward,** e.g. a window on a second display. After switching the tab, the launcher reads the window's `bounds`, finds the Hammerspoon window with the same frame, and calls `win:focus()`. That works across displays, Spaces and profiles. AppleScript can write negative bounds with a Unicode minus (U+2212), so normalise it before parsing.
+- Only talk to Chrome when `hs.application.get("com.google.Chrome")` says it is running. `tell application "Google Chrome"` would launch it otherwise.
+- **Automation permission is separate from Accessibility.** The first Apple event shows "Hammerspoon wants to control Google Chrome". A denial returns error -1743. Shell `osascript` gets its own, separate prompt for whichever app runs the shell.
+- **Matching order:** an exact destination match always wins. Next, if the text mentions a tab ("tab", "switch to", "go back to"…), the tab is matched locally: fillers are stripped, nicknames such as YT→youtube.com and Gmail→mail.google.com are checked, then the host and title words. If one site appears in several tabs, the frontmost window wins, and inside it the active tab. Ties between different sites, and anything unmatched, go to Grok, with the tabs as extra `tab:<w>:<t>` choices. If there is no such tab, the stripped text is tried as an exact destination ("YouTube tab" → YouTube entry).
+- With hundreds of tabs, the Grok prompt only gets the first 50 in window order (front window first). A tab further back can still be reached by a local match.
+- **Privacy:** titles and URLs only, never page content or JavaScript. Grok gets truncated titles plus host and first path segment. The log records counts and ids only.
+- Testing tab switching moves the user's windows. Record each window's id and active tab index first, then restore them afterwards.
+
 ## Discovering links in local app data (privacy)
 - Claude project ids and names can be found in the Claude desktop app's HTTP cache (`~/Library/Application Support/Claude/Cache/Cache_Data`). Read it **read-only** and extract only project names and ids (from `claude.ai/project/<uuid>` responses).
 - Scan app caches **read-only** and extract only ids, titles and project ids. Never read chat content, cookies or tokens. If incidental text shows up in search output, don't keep or repeat it. Prefer targeted key lookups over broad greps.

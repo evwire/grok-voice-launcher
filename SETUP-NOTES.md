@@ -41,3 +41,6 @@ Edit `~/.voice-launcher/destinations.json` (it applies on the next command). See
 - Dry run without opening anything: put phrases (one per line) in `~/.voice-launcher/selftest.txt`, run `open -g hammerspoon://voicelaunch-reload`, then read `selftest-results.txt`.
 - Something opened behind other windows: add `"activate": "<bundle id>"` to that url entry.
 - Uninstall: `./install.sh --uninstall` (keeps your destinations and the Keychain key).
+
+## Chrome tab switching (optional)
+The first time you say something like "YouTube tab" while Chrome is running, macOS asks **"Hammerspoon wants to control Google Chrome"**. Click **Allow**. If you clicked Don't Allow, turn it on in System Settings → Privacy & Security → Automation → Hammerspoon → Google Chrome. Until then the launcher shows a reminder and falls back to your normal destinations. Set `TABS_ENABLED = false` in `voice-launcher.lua` to switch the feature off.
