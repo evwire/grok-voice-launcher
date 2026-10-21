@@ -6,16 +6,16 @@ _Last updated: 21 October 2026_
 
 ## What stays on your Mac
 - **Your destination list** (`~/.voice-launcher/destinations.json`), status file and log. The log records text lengths, ids and timings, not your words (unless you turn on the `LOG_TEXT` debug setting yourself).
-- **Your xAI API key.** It is stored in your macOS Keychain (service `xai-voice-launcher`), read only at the moment of a request, and never written to a file or logged.
+- **Your API key.** It is stored in your macOS Keychain (service `xai-voice-launcher`, or `voicelauncher-<provider>` for another provider). The xAI key is only ever sent to api.x.ai. The key is read only at the moment of a request, and never written to a file or logged.
 - **Exact-name matches.** When what you say matches a name or alias on your list, it is opened locally. Nothing leaves your Mac.
 
-## What is sent to xAI, and only when needed
-When a command doesn't match exactly, VoiceLauncher sends one request **directly from your Mac to xAI's API (api.x.ai), using your own key**. It does not pass through any EVwire server. That request contains:
+## What is sent to xAI (or the provider you chose), and only when needed
+When a command doesn't match exactly, VoiceLauncher sends one request **directly from your Mac to xAI's API (api.x.ai), using your own key**. If you set another provider ([PROVIDERS.md](PROVIDERS.md)), such as OpenAI, OpenRouter, Groq or a local Ollama, the same request goes directly to that provider instead. It never passes through an EVwire server. That request contains:
 - the text of that command;
 - the ids, names, aliases and descriptions on your destination list;
 - if Chrome is running, up to 50 open tab titles (cut to 60 characters) with only the host and first path segment of each URL (no full URLs, no query strings, never page content).
 
-xAI handles that data under its own terms and privacy policy, under your account. See https://x.ai/legal.
+xAI (or your chosen provider) handles that data under its own terms and privacy policy, under your account. For xAI, see https://x.ai/legal. With a local model (Ollama on `localhost`), nothing leaves your Mac at all.
 
 ## Other apps you choose to use
 - **Dictation apps** such as Wispr Flow, macOS Dictation, Superwhisper, VoiceInk or Spokenly turn your speech into text before VoiceLauncher sees it. They have their own privacy policies.

@@ -2,7 +2,7 @@
 
 **Say where you want to go. Your Mac takes you there.**
 
-Open any app, chat, project or settings page on your Mac by voice. Built on [Hammerspoon](https://www.hammerspoon.org), works with any dictation app (Wispr Flow, macOS Dictation or plain typing), and works with your own xAI API key.
+Open any app, chat, project or settings page on your Mac by voice. Built on [Hammerspoon](https://www.hammerspoon.org), works with any dictation app (Spokenly, VoiceInk, Wispr Flow, macOS Dictation or plain typing), and works with your own xAI API key, or any OpenAI-compatible API ([PROVIDERS.md](PROVIDERS.md)).
 
 Say "Slack", "bluetooth", "my Claude project about pricing", or "Teams and calendar". VoiceLauncher understands loose, mis-transcribed or mixed-language speech and opens the right things, but **only things on your own list**. The model picks ids from your list and can't open anything else.
 
@@ -23,7 +23,7 @@ Cmd+Shift+Space  ─┐
                      exact name/alias? ── yes ─▶ open it (offline, ~3 ms)
                                           │ no
                                           ▼
-                     the xAI API (your key) picks ids from ~/.voice-launcher/destinations.json
+                     the model (your own xAI or other key) picks ids from ~/.voice-launcher/destinations.json
                                           ▼
                      open up to 4 destinations in order
 ```
@@ -51,8 +51,8 @@ See [`destinations.example.json`](destinations.example.json) for an example of e
 ## Requirements
 - macOS 13 or newer (tested on macOS 26; Apple Silicon recommended)
 - [Hammerspoon](https://www.hammerspoon.org) (`brew install --cask hammerspoon`); the installer offers to install it
-- An [xAI API key](https://console.x.ai), stored in your macOS Keychain. Exact names work without it.
-- Optional: [Wispr Flow](https://wisprflow.ai) for dictation and hands-free mode. Any dictation or typing also works.
+- An [xAI API key](https://console.x.ai), stored in your macOS Keychain. Exact names work without it. Prefer another model? Any OpenAI-compatible API (OpenAI, OpenRouter, Groq, a local Ollama) works: see [PROVIDERS.md](PROVIDERS.md).
+- Optional: a dictation app for hands-free mode: [Spokenly](https://spokenly.app), [VoiceInk](https://tryvoiceink.com), [Wispr Flow](https://wisprflow.ai) or the built-in macOS Dictation (see "Settings" below). Any dictation or typing also works.
 
 ## Quick install
 ```bash
@@ -69,7 +69,26 @@ The installer:
 
 Next, do the few one-time steps in [SETUP-NOTES.md](SETUP-NOTES.md): Accessibility permission, API key, Wispr Flow, the Siri Shortcut, and (for tab switching) allowing Hammerspoon to control Google Chrome.
 
-Options: `--languages "English, Spanish"`, `--rebuild-destinations`, `--no-autostart`, `--no-reload`, `--yes`, `--uninstall`.
+Options: `--languages "English, Spanish"`, `--rebuild-destinations`, `--no-autostart`, `--no-reload`, `--no-key`, `--yes`, `--uninstall`.
+
+## Settings (optional, in `destinations.json`)
+Next to `destinations`, two optional top-level settings change how VoiceLauncher works. They apply on the next command, and `status.txt` reports any mistake.
+
+```json
+{
+  "provider": { "preset": "openai", "models": ["gpt-4.1-mini"] },
+  "dictation": "spokenly",
+  "destinations": [ … ]
+}
+```
+
+- **`provider`**: which API handles loose requests. Leave it out for xAI. Details and safety rules: [PROVIDERS.md](PROVIDERS.md).
+- **`dictation`**: what hands-free mode (`hammerspoon://voicelaunch`, "Hey Siri, Voice Launcher") starts:
+  - `"spokenly"`: Spokenly's documented `spokenly://start` and `stop` links (optional `{"backend":"spokenly","modeId":"…"}`).
+  - `{"backend":"voiceink","hotkey":{"mods":["ctrl","alt"],"key":"d"}}`: presses the toggle shortcut you set in VoiceInk.
+  - `{"backend":"macos","hotkey":{"mods":["alt"],"key":"z"}}`: presses your custom macOS Dictation shortcut (Keyboard settings).
+  - `"wispr"`: Wispr Flow's hands-free link. Wispr doesn't document it, so it could change. This is the default when Wispr Flow is installed.
+  - `"none"`: opens the box and waits for you to dictate or type.
 
 **Already installed under the old name?** Nothing changes for you. The rename is branding only: the config folder (`~/.voice-launcher`), the Hammerspoon module (`voice-launcher.lua`), the Keychain item (`xai-voice-launcher`) and the `hammerspoon://voicelaunch` URLs all keep their names, so `git pull && ./install.sh` keeps working.
 
@@ -79,7 +98,7 @@ Prices are from each vendor's own page, read 21 Oct 2026, and may change. Most o
 
 | Product | What it is | Price | Difference from VoiceLauncher |
 |---|---|---|---|
-| **VoiceLauncher** | Voice → open apps, deep links, settings panes, Chrome tabs from your own allow-list | Free (MIT). You pay xAI directly for fuzzy commands. | — |
+| **VoiceLauncher** | Voice → open apps, deep links, settings panes, Chrome tabs from your own allow-list | Free (MIT). You pay xAI (or your chosen provider) directly for fuzzy commands. | — |
 | Raycast | Typed launcher with AI; dictation is in Pro since v2.0 | Free; Pro $96/yr | Launching is typed. It doesn't map a loose sentence to a Claude project, a settings pane or a tab. |
 | Spokenly | Dictation with "Agentic Actions" (apps, sites, Shortcuts, shell commands) | Free local; Pro $9.99/mo or $99.99/yr | Actions are set up per mode and can run shell commands. VoiceLauncher only opens entries on your list, never a command. |
 | Superwhisper | Dictation with AI modes | Free; Pro $8.49/mo, $84.99/yr, $249.99 lifetime | Dictation only. Can be your dictation app for VoiceLauncher. |
@@ -94,13 +113,15 @@ Prices are from each vendor's own page, read 21 Oct 2026, and may change. Most o
 - **Estimate:** with about 50 destinations that is roughly 1,000–3,000 input tokens and ~20 output tokens. At xAI's list price for `grok-4.20-0309-non-reasoning` ($1.25 per million input tokens, $2.50 per million output, docs.x.ai, read 21 Oct 2026) that's about **$0.001–0.004 per fuzzy command, or roughly $1–4 per 1,000**. Your actual bill depends on your list size and on xAI's current prices; check console.x.ai.
 
 ## FAQ
-**Do I need Wispr Flow?** No. Any dictation works (macOS Dictation, Superwhisper, VoiceInk, Spokenly…), and so does typing. Wispr Flow is only used for the optional "Hey Siri" hands-free mode, through a URL scheme that Wispr doesn't document and could change.
+**Do I need Wispr Flow?** No. Any dictation works (macOS Dictation, Superwhisper, VoiceInk, Spokenly…), and so does typing. For hands-free mode, VoiceLauncher can start Spokenly (documented links), VoiceInk or macOS Dictation (your shortcut), or Wispr Flow (an undocumented link that could change).
 
-**Do I need an xAI key?** Only for fuzzy requests. Without a key, exact names and aliases still work.
+**Do I need an xAI key?** Only for fuzzy requests. Without a key, exact names and aliases still work. You can also use OpenAI, OpenRouter, Groq or a local Ollama model instead ([PROVIDERS.md](PROVIDERS.md)).
 
 **Can the AI open something I didn't approve?** No. The model may only return ids from your `destinations.json`; unknown ids are dropped, and it never produces URLs or shell commands. The worst case is opening the wrong item from your own list.
 
-**What gets sent to xAI?** Only commands that don't match exactly, plus your destination names and descriptions (and truncated tab titles for tab requests). See [PRIVACY.md](PRIVACY.md).
+**What gets sent to xAI (or my provider)?** Only commands that don't match exactly, plus your destination names and descriptions (and truncated tab titles for tab requests). See [PRIVACY.md](PRIVACY.md).
+
+**Is there a paid version?** The launcher is complete and free here. The optional **Pro Kit** adds a double-click guided installer, 126 ready-made destinations in 5 packs, setup guides for each dictation app, Raycast and Stream Deck hooks, a `vl` helper command and a quick-start guide. It contains no extra launcher features: all features are in this repo.
 
 **Does it work on Intel Macs?** It targets macOS 13+. It has been tested on Apple Silicon with macOS 26; other setups are untested so far, so please open an issue if something breaks.
 
@@ -134,16 +155,18 @@ Bots and humans should read [LESSONS.md](LESSONS.md) before changing anything. I
 | `com.USER.hammerspoon-autostart.plist` | Start-at-login template |
 | `SETUP-NOTES.md` | Steps only you can do |
 | `LESSONS.md` | Gotchas and fixes |
+| `PROVIDERS.md` | Using OpenAI, OpenRouter, Groq, Ollama or a custom endpoint instead of xAI |
 | `PRIVACY.md` / `TERMS.md` | Privacy notice and terms of use |
 | `docs/index.html` | Landing page (static, no trackers) |
 | `tests/tab-match-test.lua` | Offline test of the tab matching (`lua tests/tab-match-test.lua`) |
+| `tests/settings-test.lua` | Offline test of the provider and dictation settings (`lua tests/settings-test.lua`) |
 
 ## Privacy
 Full notice: [PRIVACY.md](PRIVACY.md). In short:
 - We (EVwire) collect nothing. There is no server, account, analytics or telemetry.
-- Your API key stays in the Keychain and is read at call time. It is never logged or written to a file. Requests go straight from your Mac to xAI.
+- Your API key stays in the Keychain and is read at call time. It is never logged or written to a file. Requests go straight from your Mac to xAI (or the provider you set). Your xAI key is only ever sent to api.x.ai.
 - The log records text lengths and ids, not what you said.
-- Only exact-match misses are sent to xAI, along with your destination names and descriptions.
+- Only exact-match misses are sent to the model, along with your destination names and descriptions.
 - Chrome tabs are read only when Chrome is already running. Only titles and URLs are read: never page content, and no JavaScript is ever run in a page. The model gets at most 50 tabs, each with a title cut to 60 characters and the host plus first path segment (no full URLs, no query strings). The log records tab counts and ids such as `tab:2:5`, never titles.
 
 ## License

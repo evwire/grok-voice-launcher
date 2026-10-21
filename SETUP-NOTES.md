@@ -16,12 +16,12 @@ Optional: in Hammerspoon → Preferences, untick "Show dock icon".
    Don't put the key on the command line itself, and never paste it into a chat with an assistant.
 3. To replace it later, run the same command. To remove it: `security delete-generic-password -s xai-voice-launcher -a "$USER"`.
 
-Without a key, exact names and aliases still work. Only free-form requests ("open my work chat and the bluetooth thing") need the xAI API (your own key).
+Prefer OpenAI, OpenRouter, Groq or a local model? See PROVIDERS.md. Without a key, exact names and aliases still work. Only free-form requests ("open my work chat and the bluetooth thing") need the xAI API (your own key).
 
 ## 3. Wispr Flow (or another dictation app)
 1. Install Wispr Flow (https://wisprflow.ai), sign in, and give it Microphone + Accessibility permissions when asked.
 2. Learn its dictation key (default: hold **fn**). Press **Cmd+Shift+Space**, hold the key, say "Slack", release. The box runs on its own after a short pause.
-3. Without Wispr, any dictation works (macOS Dictation, typing). Hands-free mode then just opens the box.
+3. Without Wispr, any dictation works (macOS Dictation, Spokenly, VoiceInk, typing). To have hands-free mode start one of them, set `"dictation"` in `~/.voice-launcher/destinations.json` (see README → Settings). Otherwise hands-free mode just opens the box.
 
 ## 4. Hands-free with Siri (optional)
 1. Open **Shortcuts** → **+** → name it **Voice Launcher**, as two words (not just "Launcher", because Siri hears that as "launch"; and "VoiceLauncher" as one word is harder for Siri to match).

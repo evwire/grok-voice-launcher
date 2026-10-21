@@ -59,6 +59,7 @@ kbd{font:13px ui-monospace,Menlo,monospace;border:1px solid var(--line);border-b
 .small{font-size:14px;color:var(--muted)}
 .price ul{padding-left:18px;margin:16px 0 22px;color:var(--muted)}
 .price li{margin:6px 0}
+.price code{font:13px ui-monospace,Menlo,monospace}
 .price .btn{margin-top:auto;justify-content:center}
 details{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin-bottom:10px}
 summary{cursor:pointer;font-weight:600;list-style:none}
@@ -96,7 +97,7 @@ footer a{color:var(--muted);margin-right:16px}
   <div class="grid">
     <div class="card"><h3>Goes deeper than any launcher</h3><p>Claude and ChatGPT projects, Grok Bot chats, specific System Settings pages, folders, Shortcuts, even your open Chrome tabs.</p></div>
     <div class="card"><h3>Safe by design</h3><p>It can only open things on <em>your</em> list. The AI picks from your list and can never invent a link or run a command.</p></div>
-    <div class="card"><h3>Almost free to run</h3><p>Bring your own dictation and your own xAI API key. Exact names work offline; a fuzzy command costs a fraction of a cent on your key.</p></div>
+    <div class="card"><h3>Almost free to run</h3><p>Bring your own dictation and your own xAI API key (or any OpenAI-compatible one, even a local model). Exact names work offline; a fuzzy command costs a fraction of a cent on your key.</p></div>
   </div>
 </div>
 </section>
@@ -129,20 +130,21 @@ footer a{color:var(--muted);margin-right:16px}
 <section id="pricing">
 <div class="wrap">
   <h2>Pricing</h2>
-  <p class="lead">The launcher itself is free and open source, forever. Pay only if you want the shortcuts or want us to set it up with you. xAI bills fuzzy commands directly on your own key.</p>
+  <p class="lead">The launcher itself is free and open source, forever. Pay only if you want the shortcuts or want us to set it up with you. Your AI provider bills fuzzy commands directly on your own key.</p>
   <div class="prices">
     <div class="card price">
       <div class="tag">Open source</div>
       <div class="amount">Free</div>
       <div class="small">MIT licence</div>
-      <ul><li>The full launcher on GitHub</li><li>Apps, websites, settings panes, Claude/ChatGPT projects, Grok Bot chats, Chrome tabs</li><li>Allow-list safety model</li><li>Installer, self-test and uninstaller</li></ul>
+      <ul><li>The full launcher on GitHub, every feature included</li><li>Apps, websites, settings panes, Claude/ChatGPT projects, Grok Bot chats, Chrome tabs</li><li>xAI or any OpenAI-compatible API (OpenAI, OpenRouter, Groq, local Ollama)</li><li>Hands-free with Spokenly, VoiceInk, macOS Dictation or Wispr Flow</li><li>Allow-list safety model</li><li>Terminal installer, self-test and uninstaller</li></ul>
       <a class="btn" href="https://github.com/evwire/grok-voice-launcher#quick-install">Install from GitHub</a>
     </div>
     <div class="card price featured">
       <div class="tag">Launch week</div>
       <div class="amount"><s>€29</s>€19</div>
       <div class="small">Pro Kit · one-time payment</div>
-      <ul><li>One-line guided installer</li><li>Ready-made destination packs</li><li>Spokenly, VoiceInk and macOS Dictation backends</li><li>Stream Deck and Raycast hooks</li><li>Setup video</li><li>12 months of priority updates</li></ul>
+      <ul><li>Double-click guided installer: Homebrew, Hammerspoon, API key into your Keychain, Accessibility walkthrough, final check</li><li>126 ready-made destinations in 5 packs: AI tools, developer tools, productivity, media &amp; creators, 38 macOS settings pages</li><li>Safe pack import that never overwrites your entries</li><li>Step-by-step setup for Spokenly, VoiceInk, macOS Dictation and Wispr Flow</li><li>Raycast script commands and Stream Deck buttons</li><li><code>vl</code> helper: switch packs, dictation app or AI provider, dry-run tests</li><li>Quick-start guide (PDF) with troubleshooting</li></ul>
+      <!-- PLACEHOLDER: add "<li>Setup video</li>" once Jaan has recorded it (script: pro-kit/video/setup-video-script.md) -->
       <!-- PLACEHOLDER: replace href with the Lemon Squeezy / Polar / Gumroad checkout URL for the Pro Kit -->
       <a class="btn primary" href="#buy-pro-kit" data-placeholder="pro-kit-checkout">Get the Pro Kit</a>
     </div>
@@ -162,10 +164,12 @@ footer a{color:var(--muted);margin-right:16px}
 <section id="faq">
 <div class="wrap">
   <h2>FAQ</h2>
-  <details><summary>Do I need Wispr Flow?</summary><p>No. Any dictation works (macOS Dictation, Superwhisper, VoiceInk, Spokenly…), and so does typing. Wispr Flow is only used for the optional hands-free mode.</p></details>
+  <details><summary>Do I need Wispr Flow?</summary><p>No. Any dictation works (macOS Dictation, Superwhisper, VoiceInk, Spokenly…), and so does typing. Hands-free mode can start Spokenly, VoiceInk, macOS Dictation or Wispr Flow for you.</p></details>
   <details><summary>Does it cost per use?</summary><p>Only fuzzy commands, billed by xAI on your own key. With about 50 destinations that's roughly $0.001–0.004 per command at xAI's list price (Oct 2026). Exact names are free and offline.</p></details>
   <details><summary>Can the AI open something I didn't approve?</summary><p>No. It may only return ids from your own list. It never produces URLs or shell commands. The worst case is the wrong item from your list.</p></details>
-  <details><summary>What data do you collect?</summary><p>None. There's no server, account or analytics. Your key stays in your Keychain, and fuzzy commands go straight from your Mac to xAI.</p></details>
+  <details><summary>What data do you collect?</summary><p>None. There's no server, account or analytics. Your key stays in your Keychain, and fuzzy commands go straight from your Mac to xAI (or the provider you chose).</p></details>
+  <details><summary>Can I use OpenAI or a local model instead of xAI?</summary><p>Yes. Any OpenAI-compatible API works: OpenAI, OpenRouter, Groq, or Ollama running on your Mac. Your xAI key is only ever sent to xAI.</p></details>
+  <details><summary>What's the difference between free and the Pro Kit?</summary><p>Every launcher feature is free and open source. The Pro Kit saves setup time: a double-click installer, 126 ready-made destinations, guides for each dictation app, Raycast and Stream Deck hooks, and a quick-start guide.</p></details>
   <details><summary>Which Macs does it run on?</summary><p>macOS 13 or newer, Apple Silicon recommended. Tab switching works with Google Chrome today.</p></details>
   <details><summary>Is it affiliated with xAI or Wispr?</summary><p>No. VoiceLauncher is independent. It works with their products using your own accounts.</p></details>
 </div>
@@ -177,7 +181,7 @@ footer a{color:var(--muted);margin-right:16px}
   <div class="privacy">
     <div class="card"><h3>Key in your Keychain</h3><p>Read at call time, never logged or written to a file.</p></div>
     <div class="card"><h3>No words in logs</h3><p>Logs record lengths and ids, never what you said.</p></div>
-    <div class="card"><h3>Only misses leave your Mac</h3><p>Sent straight to xAI with your list's names. Never page content.</p></div>
+    <div class="card"><h3>Only misses leave your Mac</h3><p>Sent straight to your AI provider with your list's names. Never page content. A local model keeps everything on your Mac.</p></div>
   </div>
 </div>
 </section>

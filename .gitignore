@@ -1,2 +1,6 @@
 *.tar.gz
 .DS_Store
+
+# Paid Pro Kit: built into a zip, never pushed to the public repo
+/pro-kit/
+*.zip
