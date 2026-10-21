@@ -1,5 +1,5 @@
 #!/bin/bash
-# Voice Launcher installer for macOS. Safe to run again (idempotent):
+# VoiceLauncher for Mac installer. Safe to run again (idempotent):
 #  - backs up every file it touches to ~/.voice-launcher/backups/<timestamp>/
 #  - never overwrites an existing destinations.json (use --rebuild-destinations to get a
 #    fresh suggestion written next to it)
@@ -7,7 +7,8 @@
 #    agree, runs Apple's `security` tool which asks for the key at a hidden prompt.
 #
 # Usage: ./install.sh [--yes] [--no-autostart] [--no-reload] [--rebuild-destinations]
-#                     [--languages "English, Spanish"] [--uninstall]
+#                     [--languages "English, Spanish"] [--no-key] [--uninstall]
+#  --no-key skips the xAI key step (e.g. when another provider is set in destinations.json)
 set -euo pipefail
 
 KIT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,7 +21,7 @@ PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 BACKUP_DIR="$DATA_DIR/backups/$STAMP"
 
-ASSUME_YES=0; AUTOSTART=1; RELOAD=1; REBUILD=0; UNINSTALL=0; LANGS=""
+ASSUME_YES=0; AUTOSTART=1; RELOAD=1; REBUILD=0; UNINSTALL=0; LANGS=""; KEYSTEP=1
 while [ $# -gt 0 ]; do
   case "$1" in
     --yes|-y) ASSUME_YES=1 ;;
@@ -28,8 +29,9 @@ while [ $# -gt 0 ]; do
     --no-reload) RELOAD=0 ;;
     --rebuild-destinations) REBUILD=1 ;;
     --uninstall) UNINSTALL=1 ;;
+    --no-key) KEYSTEP=0 ;;
     --languages) shift; LANGS="${1:-}" ;;
-    -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,11p' "$0"; exit 0 ;;
     *) echo "Unknown option: $1" >&2; exit 2 ;;
   esac
   shift
@@ -174,6 +176,9 @@ fi
 cp "$KIT_DIR/destinations.example.json" "$DATA_DIR/destinations.example.json"
 
 # ---------------------------------------------------------------- API key (never echoed)
+if [ "$KEYSTEP" = 0 ]; then
+  say "API key step skipped (--no-key)"
+else
 say "xAI API key (Keychain service '$KEYCHAIN_SERVICE')"
 if security find-generic-password -s "$KEYCHAIN_SERVICE" -a "$USER" >/dev/null 2>&1; then
   ok "key found in Keychain"
@@ -190,6 +195,7 @@ else
   else
     echo "    Later, run:  security add-generic-password -U -s $KEYCHAIN_SERVICE -a \"\$USER\" -w"
   fi
+fi
 fi
 
 # ---------------------------------------------------------------- autostart

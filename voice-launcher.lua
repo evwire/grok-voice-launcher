@@ -1,13 +1,15 @@
--- Voice Launcher for macOS (Hammerspoon + any dictation app + xAI Grok)
+-- VoiceLauncher for Mac (Hammerspoon + any dictation app + your own xAI or OpenAI-compatible API key)
+-- Internal names (voice-launcher.lua, ~/.voice-launcher, Keychain "xai-voice-launcher",
+-- hammerspoon://voicelaunch) are kept on purpose so existing installs keep working.
 --
 -- Flow: hotkey (or "Hey Siri, Voice Launcher" -> hammerspoon://voicelaunch) opens a
 -- one-line text box -> you dictate (Wispr Flow by default) -> after a short pause the
 -- text is matched against ~/.voice-launcher/destinations.json. An exact name/alias match
--- opens locally (no network); otherwise Grok picks ids FROM THAT LIST ONLY. Nothing that
+-- opens locally (no network); otherwise the model picks ids FROM THAT LIST ONLY. Nothing that
 -- is not listed in destinations.json can ever be opened. The one addition: "YouTube tab",
 -- "switch to my Gmail tab" switch to an ALREADY-OPEN Google Chrome tab (see "Chrome tabs").
 --
--- Privacy: the xAI key is read from the macOS Keychain on each call, never logged or
+-- Privacy: the API key is read from the macOS Keychain on each call, never logged or
 -- stored. The log records lengths, ids and timings, never what you said (unless you set
 -- LOG_TEXT = true while debugging).
 --
@@ -16,7 +18,7 @@
 --   require("voice-launcher")
 
 ---------------------------------------------------------------------------------------
--- CONFIG (edit here; models/routerNotes can also be set in destinations.json)
+-- CONFIG (edit here; models/routerNotes/provider/dictation can also be set in destinations.json)
 ---------------------------------------------------------------------------------------
 local HOME             = os.getenv("HOME")
 local DATA_DIR         = HOME .. "/.voice-launcher"
@@ -27,7 +29,8 @@ local SELFTEST_FILE    = DATA_DIR .. "/selftest.txt"         -- phrases to dry-r
 local SELFTEST_RESULTS = DATA_DIR .. "/selftest-results.txt"
 
 local KEYCHAIN_SERVICE = "xai-voice-launcher"               -- account = $USER
-local API_URL          = "https://api.x.ai/v1/chat/completions"
+-- API endpoint: xAI by default. Another OpenAI-compatible API can be set with "provider" in
+-- destinations.json (see SETTINGS below and PROVIDERS.md).
 -- Tried in order; on HTTP 400/404 (model renamed/retired) the next one is used.
 -- A fast non-reasoning model keeps the round trip well under a second.
 local DEFAULT_MODELS   = { "grok-4.20-0309-non-reasoning", "grok-4.3" }
@@ -58,6 +61,145 @@ local DONE_WORDS                = { "done" }  -- trailing "done" (said to finish
 local LEADING_FILLERS = { "please", "open", "launch", "go to", "show me", "show", "the" }
 
 local LOG_TEXT = false   -- true = also log what was said (debug only; off by default)
+
+---------------------------------------------------------------------------------------
+-- Optional settings in destinations.json (pure Lua, no hs.*; tested by tests/settings-test.lua)
+--   "provider":  which OpenAI-compatible chat-completions API to use (default: xAI)
+--   "dictation": which dictation app hands-free mode starts (default: Wispr Flow if installed)
+---------------------------------------------------------------------------------------
+-- [settings-pure-begin]
+local SETTINGS = {}
+SETTINGS.XAI_URL = "https://api.x.ai/v1/chat/completions"
+SETTINGS.XAI_SERVICE = "xai-voice-launcher"
+-- Presets only fill in the endpoint and a Keychain service name; models must be given
+-- for anything but xAI, because model names change too often to hard-code.
+SETTINGS.PRESETS = {
+  xai        = { name = "xAI", apiUrl = SETTINGS.XAI_URL, keychainService = SETTINGS.XAI_SERVICE },
+  openai     = { name = "OpenAI", apiUrl = "https://api.openai.com/v1/chat/completions", keychainService = "voicelauncher-openai" },
+  openrouter = { name = "OpenRouter", apiUrl = "https://openrouter.ai/api/v1/chat/completions", keychainService = "voicelauncher-openrouter" },
+  groq       = { name = "Groq", apiUrl = "https://api.groq.com/openai/v1/chat/completions", keychainService = "voicelauncher-groq" },
+  ollama     = { name = "Ollama (local)", apiUrl = "http://localhost:11434/v1/chat/completions", keychainService = false },
+}
+
+local function urlHost(u) -- strict: scheme://host[:port]/path, no user@ part, no spaces
+  if type(u) ~= "string" or u:find("[%s@\\]") then return nil end
+  local scheme, host, rest = u:match("^(https?)://([%w%.%-]+)(.*)$")
+  if not host or not (rest == "" or rest:match("^[:/]")) then return nil end
+  if rest:match("^:") and not rest:match("^:%d+/") and not rest:match("^:%d+$") then return nil end
+  return scheme, host:lower()
+end
+local function isLocalHost(h) return h == "localhost" or h == "127.0.0.1" end
+local function strList(t)
+  if type(t) ~= "table" then return nil end
+  local out = {}
+  for _, v in ipairs(t) do if type(v) == "string" and v:match("^[%w%._:/%-]+$") then out[#out + 1] = v end end
+  return #out > 0 and out or nil
+end
+
+-- Returns { name, apiUrl, keychainService (string or false), models, maxTokensParam,
+-- sendTemperature } or nil, error. Safety rules:
+--  * only https:// endpoints, or plain http:// to localhost/127.0.0.1 (local models);
+--  * the xAI key (Keychain service xai-voice-launcher) is only ever sent to api.x.ai;
+--  * a missing key is only allowed for localhost.
+function SETTINGS.provider(data, defaultModels)
+  local p = data and data.provider
+  if p == nil then
+    return { name = "xAI", apiUrl = SETTINGS.XAI_URL, keychainService = SETTINGS.XAI_SERVICE,
+             models = strList(data and data.models) or defaultModels,
+             maxTokensParam = "max_tokens", sendTemperature = true }
+  end
+  if type(p) == "string" then p = { preset = p } end
+  if type(p) ~= "table" then return nil, "provider must be a name or an object" end
+  local base = {}
+  if p.preset ~= nil then
+    base = SETTINGS.PRESETS[tostring(p.preset):lower()]
+    if not base then return nil, "unknown provider preset '" .. tostring(p.preset) .. "'" end
+  end
+  local r = {
+    name = type(p.name) == "string" and p.name:sub(1, 40) or base.name or "custom",
+    apiUrl = type(p.apiUrl) == "string" and p.apiUrl or base.apiUrl,
+    keychainService = base.keychainService,
+    maxTokensParam = (p.maxTokensParam == "max_completion_tokens") and "max_completion_tokens" or "max_tokens",
+    sendTemperature = p.sendTemperature ~= false,
+  }
+  if p.keychainService ~= nil then r.keychainService = p.keychainService end
+  if type(r.apiUrl) ~= "string" then return nil, "provider needs an apiUrl" end
+  local scheme, host = urlHost(r.apiUrl)
+  if not host then return nil, "provider apiUrl is not a valid http(s) URL" end
+  if scheme == "http" and not isLocalHost(host) then
+    return nil, "provider apiUrl must use https (plain http only for localhost)"
+  end
+  if r.keychainService == false or r.keychainService == "" then
+    if not isLocalHost(host) then return nil, "a remote provider needs a keychainService" end
+    r.keychainService = false
+  elseif type(r.keychainService) ~= "string" or not r.keychainService:match("^[%w%._%-]+$") then
+    return nil, "keychainService may only contain letters, digits, . _ -"
+  end
+  if r.keychainService == SETTINGS.XAI_SERVICE and host ~= "api.x.ai" then
+    return nil, "the xAI key (" .. SETTINGS.XAI_SERVICE .. ") can only be sent to api.x.ai; use another keychainService"
+  end
+  local isXai = host == "api.x.ai"
+  r.models = strList(p.models) or (isXai and (strList(data.models) or defaultModels)) or nil
+  if not r.models then return nil, "provider '" .. r.name .. "' needs a models list" end
+  return r
+end
+
+SETTINGS.MODS = { cmd = true, alt = true, ctrl = true, shift = true, fn = true }
+SETTINGS.NAMED_KEYS = { space = true, ["return"] = true, tab = true, escape = true,
+  f1 = true, f2 = true, f3 = true, f4 = true, f5 = true, f6 = true, f7 = true, f8 = true, f9 = true,
+  f10 = true, f11 = true, f12 = true, f13 = true, f14 = true, f15 = true, f16 = true, f17 = true,
+  f18 = true, f19 = true, f20 = true }
+SETTINGS.RESERVED = { ["cmd+shift+space"] = true, ["alt+cmd+ctrl+space"] = true } -- VoiceLauncher's own
+
+local function hotkeySpec(h)
+  if type(h) ~= "table" or type(h.key) ~= "string" then return nil, "hotkey needs mods and key" end
+  local key = h.key:lower()
+  if not (key:match("^[a-z0-9]$") or SETTINGS.NAMED_KEYS[key]) then return nil, "unsupported hotkey key '" .. h.key .. "'" end
+  local mods, seen = {}, {}
+  for _, m in ipairs(type(h.mods) == "table" and h.mods or {}) do
+    m = tostring(m):lower()
+    if m == "option" then m = "alt" elseif m == "command" then m = "cmd" elseif m == "control" then m = "ctrl" end
+    if not SETTINGS.MODS[m] then return nil, "unsupported modifier '" .. m .. "'" end
+    if not seen[m] then seen[m] = true; mods[#mods + 1] = m end
+  end
+  if #mods == 0 and not key:match("^f%d+$") then return nil, "a letter/digit hotkey needs at least one modifier" end
+  local sorted = {}
+  for i, m in ipairs(mods) do sorted[i] = m end
+  table.sort(sorted)
+  if SETTINGS.RESERVED[table.concat(sorted, "+") .. "+" .. key] then
+    return nil, "that hotkey is VoiceLauncher's own; pick another one in your dictation app"
+  end
+  return { mods = mods, key = key }
+end
+
+-- Returns { backend, kind = "url"|"hotkey"|"none", start, stop, hotkey, stopByToggle, hint }
+-- or nil, error. legacyScheme = the DICTATION_SCHEME constant (used when the file says nothing).
+function SETTINGS.dictation(data, legacyScheme)
+  local d = data and data.dictation
+  if d == nil then d = (legacyScheme == "wispr-flow") and "wispr" or "none" end
+  if type(d) == "string" then d = { backend = d } end
+  if type(d) ~= "table" or type(d.backend) ~= "string" then return nil, "dictation must be a name or an object" end
+  local b = d.backend:lower()
+  if b == "wispr" or b == "wispr-flow" then
+    return { backend = "wispr", kind = "url", start = "wispr-flow://start-hands-free",
+             stop = "wispr-flow://stop-hands-free", hint = "tap fn to finish early" }
+  elseif b == "spokenly" then
+    local q = ""
+    if d.modeId ~= nil then
+      if type(d.modeId) ~= "string" or not d.modeId:match("^[%w%-]+$") then return nil, "spokenly modeId looks wrong" end
+      q = "?mode_id=" .. d.modeId
+    end
+    return { backend = "spokenly", kind = "url", start = "spokenly://start" .. q, stop = "spokenly://stop" }
+  elseif b == "voiceink" or b == "macos" or b == "hotkey" then
+    local h, err = hotkeySpec(d.hotkey)
+    if not h then return nil, b .. ": " .. err end
+    return { backend = b, kind = "hotkey", hotkey = h, stopByToggle = d.stop ~= "none" }
+  elseif b == "none" then
+    return { backend = "none", kind = "none" }
+  end
+  return nil, "unknown dictation backend '" .. d.backend .. "'"
+end
+-- [settings-pure-end]
 
 ---------------------------------------------------------------------------------------
 require("hs.ipc")
@@ -122,17 +264,22 @@ local function loadConfig()
       end
     end
   end
-  local models = (type(data.models) == "table" and #data.models > 0) and data.models or DEFAULT_MODELS
-  return { byId = byId, list = list, names = names, collisions = collisions, models = models,
+  local provider, perr = SETTINGS.provider(data, DEFAULT_MODELS)
+  local dict, derr = SETTINGS.dictation(data, DICTATION_SCHEME)
+  return { byId = byId, list = list, names = names, collisions = collisions,
+           provider = provider, providerError = perr, dictation = dict, dictationError = derr,
+           models = provider and provider.models or DEFAULT_MODELS,
            routerNotes = type(data.routerNotes) == "string" and data.routerNotes or nil }
 end
 
 ---------------------------------------------------------------------------------------
--- xAI key from Keychain (never printed, logged or kept in a global)
+-- API key from Keychain (never printed, logged or kept in a global)
 ---------------------------------------------------------------------------------------
-local function getKey()
+local function getKey(service)
+  service = service or KEYCHAIN_SERVICE
+  if not service:match("^[%w%._%-]+$") then return nil end -- validated in SETTINGS.provider too
   local user = (os.getenv("USER") or ""):gsub("[^%w%._%-]", "")
-  local cmd = "/usr/bin/security find-generic-password -s '" .. KEYCHAIN_SERVICE .. "'"
+  local cmd = "/usr/bin/security find-generic-password -s '" .. service .. "'"
   local out, ok = hs.execute(cmd .. " -a '" .. user .. "' -w 2>/dev/null")
   if not ok or trim(out) == "" then out, ok = hs.execute(cmd .. " -w 2>/dev/null") end
   local k = ok and trim(out) or ""
@@ -451,22 +598,30 @@ function M.resolve(text, callback)
   end
   for _, t in ipairs(tabs or {}) do cfg.byId["tab:" .. t.w .. ":" .. t.t] = TAB.dest(t) end
 
-  local key = getKey()
-  if not key then
-    return callback(nil, "no xAI key in Keychain (service " .. KEYCHAIN_SERVICE .. ")")
+  local prov = cfg.provider
+  if not prov then return callback(nil, "provider setting: " .. tostring(cfg.providerError)) end
+  local headers = { ["Content-Type"] = "application/json" }
+  if prov.keychainService then
+    local key = getKey(prov.keychainService)
+    if not key then
+      return callback(nil, "no " .. prov.name .. " key in Keychain (service " .. prov.keychainService .. ")")
+    end
+    headers["Authorization"] = "Bearer " .. key
+    key = nil
   end
-  local headers = { ["Content-Type"] = "application/json", ["Authorization"] = "Bearer " .. key }
-  key = nil
   local messages = buildMessages(cfg, text)
   addTabChoices(messages, tabs)
   local done = false
   local watchdog = hs.timer.doAfter(REQUEST_TIMEOUT, function()
-    if not done then done = true; callback(nil, "Grok API not answering") end
+    if not done then done = true; callback(nil, prov.name .. " API not answering") end
   end)
   local function try(i)
     local model = cfg.models[i]
-    local body = hs.json.encode({ model = model, messages = messages, temperature = 0, max_tokens = 200 })
-    hs.http.asyncPost(API_URL, body, headers, function(status, resp)
+    local req = { model = model, messages = messages }
+    req[prov.maxTokensParam] = 200
+    if prov.sendTemperature then req.temperature = 0 end
+    local body = hs.json.encode(req)
+    hs.http.asyncPost(prov.apiUrl, body, headers, function(status, resp)
       if done then return end
       if status == 200 then
         done = true; watchdog:stop()
@@ -481,7 +636,7 @@ function M.resolve(text, callback)
       else
         done = true; watchdog:stop()
         local hint = (status == 401 or status == 403) and " – check the key in Keychain" or ""
-        callback(nil, "Grok API error (HTTP " .. tostring(status) .. ")" .. hint)
+        callback(nil, prov.name .. " API error (HTTP " .. tostring(status) .. ")" .. hint)
       end
     end)
   end
@@ -533,7 +688,7 @@ local function pressWhenReady(appName, spec, coldStart)
   end
   local function attempt()
     if not hs.accessibilityState() then
-      hs.alert.show("Voice launcher needs Accessibility permission for Hammerspoon", 4)
+      hs.alert.show("VoiceLauncher needs Accessibility permission for Hammerspoon", 4)
       plog("no Accessibility permission"); return
     end
     local app, found = find()
@@ -615,7 +770,7 @@ local function run(text)
     for _, d in ipairs(dests or {}) do ids[#ids + 1] = d.id end
     vlog("run " .. said(text) .. " -> " ..
       (err and ("error: " .. err) or (tostring(via) .. " [" .. table.concat(ids, ",") .. "]")))
-    if err then hs.alert.show("Voice launcher: " .. err, 3); return end
+    if err then hs.alert.show("VoiceLauncher: " .. err, 3); return end
     if not dests or #dests == 0 then hs.alert.show("Didn't catch that: “" .. text .. "”", 2.5); return end
     openAll(dests)
   end)
@@ -636,10 +791,22 @@ function voice.cancel()
   if voice.stopTimer then voice.stopTimer:stop(); voice.stopTimer = nil end
   if voice.waitTimer then voice.waitTimer:stop(); voice.waitTimer = nil end
 end
-local function dictation(cmd)
-  if DICTATION_SCHEME then
+local function currentDictation()
+  local cfg = loadConfig()
+  if cfg and cfg.dictation then return cfg.dictation end
+  if cfg and cfg.dictationError then vlog("dictation setting ignored: " .. cfg.dictationError) end
+  return SETTINGS.dictation(nil, DICTATION_SCHEME)
+end
+-- cmd = "start" | "stop". URL backends use their documented start/stop links; hotkey
+-- backends press the shortcut you set in that app (pressed again to stop in toggle mode).
+local function dictation(cmd, dict)
+  dict = dict or voice.dict
+  if not dict or dict.kind == "none" then return end
+  if dict.kind == "url" then
     -- -g keeps the dictation app in the background so the box keeps focus and receives the text
-    hs.task.new("/usr/bin/open", nil, { "-g", DICTATION_SCHEME .. "://" .. cmd }):start()
+    hs.task.new("/usr/bin/open", nil, { "-g", cmd == "start" and dict.start or dict.stop }):start()
+  elseif dict.kind == "hotkey" and (cmd == "start" or dict.stopByToggle) then
+    hs.eventtap.keyStroke(dict.hotkey.mods, dict.hotkey.key, 0)
   end
 end
 
@@ -672,7 +839,7 @@ end)
 chooser:hideCallback(function()
   if voice.active then
     vlog("box closed while listening")
-    dictation("stop-hands-free")
+    dictation("stop")
   end
   voice.active = false
   voice.cancel()
@@ -693,17 +860,19 @@ end
 function M.voice()
   voice.cancel()
   M.show()
-  chooser:placeholderText(DICTATION_SCHEME and "Listening… speak now (tap fn to finish early)"
-    or "Listening… start your dictation now")
+  local dict = currentDictation()
+  voice.dict = dict
+  chooser:placeholderText((dict.kind == "none") and "Listening… start your dictation now"
+    or ("Listening… speak now" .. (dict.hint and (" (" .. dict.hint .. ")") or "")))
   voice.active = true
-  vlog("hands-free start")
-  if not DICTATION_SCHEME then return end
-  hs.timer.doAfter(HANDSFREE_START_DELAY, function() if voice.active then dictation("start-hands-free") end end)
+  vlog("hands-free start (" .. dict.backend .. ")")
+  if dict.kind == "none" then return end
+  hs.timer.doAfter(HANDSFREE_START_DELAY, function() if voice.active then dictation("start", dict) end end)
   voice.stopTimer = hs.timer.doAfter(HANDSFREE_START_DELAY + HANDSFREE_MAX_SECONDS, function()
     voice.stopTimer = nil
     if not voice.active then return end
     vlog("max window reached, stopping dictation")
-    dictation("stop-hands-free")
+    dictation("stop", dict)
     chooser:placeholderText("Transcribing…")
     voice.waitTimer = hs.timer.doAfter(HANDSFREE_TEXT_WAIT, function()
       voice.waitTimer = nil
@@ -711,7 +880,7 @@ function M.voice()
         vlog("no text arrived, closing box")
         voice.active = false
         chooser:hide()
-        hs.alert.show("Voice launcher: didn't catch anything", 2)
+        hs.alert.show("VoiceLauncher: didn't catch anything", 2)
       end
     end)
   end)
@@ -767,7 +936,12 @@ do
     " accessibility=" .. tostring(hs.accessibilityState()) ..
     " url=hammerspoon://voicelaunch" ..
     " destinations=" .. (cfg and #cfg.list or ("ERROR " .. tostring(err))) ..
-    " key=" .. (getKey() and "present" or "MISSING") .. "\n"
+    " provider=" .. (cfg and cfg.provider and cfg.provider.name or "ERROR") ..
+    " key=" .. ((cfg and cfg.provider and not cfg.provider.keychainService) and "not-needed"
+      or (getKey(cfg and cfg.provider and cfg.provider.keychainService or nil) and "present" or "MISSING")) ..
+    " dictation=" .. (cfg and cfg.dictation and cfg.dictation.backend or "ERROR") .. "\n"
+  if cfg and cfg.providerError then s = s .. "provider setting error: " .. cfg.providerError .. "\n" end
+  if cfg and cfg.dictationError then s = s .. "dictation setting error: " .. cfg.dictationError .. "\n" end
   if cfg and #cfg.collisions > 0 then
     s = s .. "alias collisions (first entry wins): " .. table.concat(cfg.collisions, "; ") .. "\n"
   end

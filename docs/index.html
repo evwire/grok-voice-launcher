@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VoiceLauncher for Mac – say where you want to go</title>
+<meta name="description" content="A voice launcher for people who live in AI apps. Say “my Claude pricing project”, “Bluetooth” or “the YouTube tab” and your Mac opens it. Free and open source.">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; media-src 'self'; base-uri 'none'; form-action 'none'">
+<meta property="og:title" content="VoiceLauncher for Mac">
+<meta property="og:description" content="Say where you want to go. Your Mac takes you there.">
+<meta property="og:type" content="website">
+<!-- PLACEHOLDER: when voicelauncher.app is live, add <link rel="canonical" href="https://voicelauncher.app/"> and og:url / og:image -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%235b5bf7'/%3E%3Cpath d='M16 7a4 4 0 0 0-4 4v5a4 4 0 0 0 8 0v-5a4 4 0 0 0-4-4zm-7 9a7 7 0 0 0 14 0h-2a5 5 0 0 1-10 0zm6 8h2v3h-2z' fill='white'/%3E%3C/svg%3E">
+<style>
+:root{--bg:#0b0c10;--panel:#14161d;--line:#262a35;--text:#eceef3;--muted:#9aa1b2;--accent:#7c7cff;--accent2:#4fd1c5;--radius:16px;color-scheme:dark}
+@media (prefers-color-scheme:light){:root{--bg:#fafafc;--panel:#fff;--line:#e4e6ee;--text:#14161d;--muted:#5b6275;--accent:#4b4bf0;--accent2:#0f9d8f;color-scheme:light}}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.6 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+a{color:var(--accent)}
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+header.top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line)}
+header.top .wrap{display:flex;align-items:center;justify-content:space-between;height:60px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;text-decoration:none;color:var(--text);letter-spacing:-.01em}
+.logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center}
+.logo svg{width:16px;height:16px}
+nav a{color:var(--muted);text-decoration:none;margin-left:22px;font-size:15px}
+nav a:hover{color:var(--text)}
+@media (max-width:640px){nav a:not(.gh){display:none}}
+.hero{padding:88px 0 56px;text-align:center}
+.pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:13px;color:var(--muted);margin-bottom:22px}
+h1{font-size:clamp(36px,6vw,64px);line-height:1.05;letter-spacing:-.03em;margin:0 auto 20px;max-width:15ch}
+h1 span{background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{font-size:clamp(17px,2.2vw,20px);color:var(--muted);max-width:640px;margin:0 auto 32px}
+.cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 20px;border-radius:12px;font-weight:600;text-decoration:none;border:1px solid var(--line);color:var(--text);background:var(--panel)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn:hover{filter:brightness(1.08)}
+.say{margin:40px auto 0;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.say code{font:14px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--panel);border:1px solid var(--line);padding:6px 12px;border-radius:999px;color:var(--text)}
+section{padding:64px 0;border-top:1px solid var(--line)}
+h2{font-size:clamp(26px,3.6vw,36px);letter-spacing:-.02em;margin:0 0 12px}
+.lead{color:var(--muted);max-width:680px;margin:0 0 36px}
+.grid{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:24px}
+.card h3{margin:0 0 8px;font-size:18px}
+.card p{margin:0;color:var(--muted)}
+.num{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:700;background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent);margin-bottom:14px}
+kbd{font:13px ui-monospace,Menlo,monospace;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:1px 6px;background:var(--bg)}
+.video{aspect-ratio:16/9;border-radius:var(--radius);border:1px dashed var(--line);background:repeating-linear-gradient(45deg,var(--panel),var(--panel) 12px,color-mix(in srgb,var(--panel) 92%,var(--accent)) 12px,color-mix(in srgb,var(--panel) 92%,var(--accent)) 24px);display:grid;place-items:center;text-align:center;color:var(--muted)}
+.video .play{width:72px;height:72px;border-radius:50%;background:var(--accent);display:grid;place-items:center;margin:0 auto 12px}
+.prices{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));align-items:stretch}
+.price{display:flex;flex-direction:column}
+.price.featured{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.tag{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--accent2)}
+.amount{font-size:40px;font-weight:800;letter-spacing:-.02em;margin:6px 0 2px}
+.amount s{font-size:22px;color:var(--muted);font-weight:600;margin-right:6px}
+.small{font-size:14px;color:var(--muted)}
+.price ul{padding-left:18px;margin:16px 0 22px;color:var(--muted)}
+.price li{margin:6px 0}
+.price code{font:13px ui-monospace,Menlo,monospace}
+.price .btn{margin-top:auto;justify-content:center}
+details{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin-bottom:10px}
+summary{cursor:pointer;font-weight:600;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";float:right;color:var(--muted)}
+details[open] summary::after{content:"–"}
+details p{color:var(--muted);margin:10px 0 0}
+.privacy{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+footer{border-top:1px solid var(--line);padding:32px 0 48px;color:var(--muted);font-size:14px}
+footer .wrap{display:flex;gap:16px;justify-content:space-between;flex-wrap:wrap}
+footer a{color:var(--muted);margin-right:16px}
+.disclaimer{margin-top:14px;font-size:13px;width:100%}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="#"><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 2a4 4 0 0 0-4 4v6a4 4 0 0 0 8 0V6a4 4 0 0 0-4-4zm-7 10a7 7 0 0 0 14 0h-2a5 5 0 0 1-10 0zm6 8h2v3h-2z"/></svg></span>VoiceLauncher</a>
+  <nav><a href="#how">How it works</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a><a class="gh" href="https://github.com/evwire/grok-voice-launcher">GitHub</a></nav>
+</div></header>
+
+<main>
+<div class="wrap hero">
+  <div class="pill">Free &amp; open source · macOS 13+</div>
+  <h1>Say where you want to go. <span>Your Mac takes you there.</span></h1>
+  <p class="sub">VoiceLauncher is a voice launcher for people who live in AI apps. Press a key, say “my Claude pricing project”, “Bluetooth” or “the YouTube tab”, and it opens the exact place in about a second.</p>
+  <div class="cta">
+    <a class="btn primary" href="https://github.com/evwire/grok-voice-launcher#quick-install">Get it free on GitHub</a>
+    <a class="btn" href="#pricing">Pro Kit · €19 launch week</a>
+  </div>
+  <div class="say" aria-label="Example commands"><code>“bluetooth”</code><code>“my Claude pricing project”</code><code>“open Slack and my dashboard”</code><code>“the YouTube tab”</code></div>
+</div>
+
+<section>
+<div class="wrap">
+  <div class="grid">
+    <div class="card"><h3>Goes deeper than any launcher</h3><p>Claude and ChatGPT projects, Grok Bot chats, specific System Settings pages, folders, Shortcuts, even your open Chrome tabs.</p></div>
+    <div class="card"><h3>Safe by design</h3><p>It can only open things on <em>your</em> list. The AI picks from your list and can never invent a link or run a command.</p></div>
+    <div class="card"><h3>Almost free to run</h3><p>Bring your own dictation and your own xAI API key (or any OpenAI-compatible one, even a local model). Exact names work offline; a fuzzy command costs a fraction of a cent on your key.</p></div>
+  </div>
+</div>
+</section>
+
+<section id="how">
+<div class="wrap">
+  <h2>How it works</h2>
+  <p class="lead">One hotkey, one loose sentence. Exact names open instantly on your Mac; anything fuzzy is matched against your own list.</p>
+  <div class="grid">
+    <div class="card"><div class="num">1</div><h3>Press <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>Space</kbd></h3><p>Or say “Hey Siri, Voice Launcher” for hands-free. A small box appears and listens.</p></div>
+    <div class="card"><div class="num">2</div><h3>Say it loosely</h3><p>In any language, mis-transcriptions and all. Exact names and aliases match offline in about 3 ms.</p></div>
+    <div class="card"><div class="num">3</div><h3>It opens, in order</h3><p>Up to four places per sentence: “open Slack and my dashboard” opens Slack, then your Claude dashboard.</p></div>
+  </div>
+</div>
+</section>
+
+<section id="demo">
+<div class="wrap">
+  <h2>See it in 60 seconds</h2>
+  <p class="lead">Bluetooth settings, a Claude project, two apps at once, a Chrome tab on another display, and hands-free mode.</p>
+  <!-- DEMO VIDEO PLACEHOLDER: replace this div with
+       <video src="demo.mp4" poster="demo-poster.jpg" controls playsinline preload="none" style="width:100%;border-radius:16px"></video>
+       (self-host the file in /docs; avoid third-party embeds so the page stays tracker-free) -->
+  <div class="video" role="img" aria-label="Demo video coming soon">
+    <div><div class="play" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div>Demo video coming soon</div>
+  </div>
+</div>
+</section>
+
+<section id="pricing">
+<div class="wrap">
+  <h2>Pricing</h2>
+  <p class="lead">The launcher itself is free and open source, forever. Pay only if you want the shortcuts or want us to set it up with you. Your AI provider bills fuzzy commands directly on your own key.</p>
+  <div class="prices">
+    <div class="card price">
+      <div class="tag">Open source</div>
+      <div class="amount">Free</div>
+      <div class="small">MIT licence</div>
+      <ul><li>The full launcher on GitHub, every feature included</li><li>Apps, websites, settings panes, Claude/ChatGPT projects, Grok Bot chats, Chrome tabs</li><li>xAI or any OpenAI-compatible API (OpenAI, OpenRouter, Groq, local Ollama)</li><li>Hands-free with Spokenly, VoiceInk, macOS Dictation or Wispr Flow</li><li>Allow-list safety model</li><li>Terminal installer, self-test and uninstaller</li></ul>
+      <a class="btn" href="https://github.com/evwire/grok-voice-launcher#quick-install">Install from GitHub</a>
+    </div>
+    <div class="card price featured">
+      <div class="tag">Launch week</div>
+      <div class="amount"><s>€29</s>€19</div>
+      <div class="small">Pro Kit · one-time payment</div>
+      <ul><li>Double-click guided installer: Homebrew, Hammerspoon, API key into your Keychain, Accessibility walkthrough, final check</li><li>126 ready-made destinations in 5 packs: AI tools, developer tools, productivity, media &amp; creators, 38 macOS settings pages</li><li>Safe pack import that never overwrites your entries</li><li>Step-by-step setup for Spokenly, VoiceInk, macOS Dictation and Wispr Flow</li><li>Raycast script commands and Stream Deck buttons</li><li><code>vl</code> helper: switch packs, dictation app or AI provider, dry-run tests</li><li>Quick-start guide (PDF) with troubleshooting</li></ul>
+      <!-- PLACEHOLDER: add "<li>Setup video</li>" once Jaan has recorded it (script: pro-kit/video/setup-video-script.md) -->
+      <!-- PLACEHOLDER: replace href with the Lemon Squeezy / Polar / Gumroad checkout URL for the Pro Kit -->
+      <a class="btn primary" href="#buy-pro-kit" data-placeholder="pro-kit-checkout">Get the Pro Kit</a>
+    </div>
+    <div class="card price">
+      <div class="tag">Done for you</div>
+      <div class="amount">€149</div>
+      <div class="small">One-time · 30-minute session</div>
+      <ul><li>We set it up with you, remotely</li><li>Your 20 most-used places configured</li><li>Hotkey, hands-free mode and tab switching tested</li></ul>
+      <!-- PLACEHOLDER: replace href with the checkout or booking URL for the setup session -->
+      <a class="btn" href="#buy-setup" data-placeholder="setup-checkout">Book a setup</a>
+    </div>
+  </div>
+  <p class="small" style="margin-top:18px">Checkout opens with the launch. Payments will be handled by a merchant of record, which takes care of VAT.</p>
+</div>
+</section>
+
+<section id="faq">
+<div class="wrap">
+  <h2>FAQ</h2>
+  <details><summary>Do I need Wispr Flow?</summary><p>No. Any dictation works (macOS Dictation, Superwhisper, VoiceInk, Spokenly…), and so does typing. Hands-free mode can start Spokenly, VoiceInk, macOS Dictation or Wispr Flow for you.</p></details>
+  <details><summary>Does it cost per use?</summary><p>Only fuzzy commands, billed by xAI on your own key. With about 50 destinations that's roughly $0.001–0.004 per command at xAI's list price (Oct 2026). Exact names are free and offline.</p></details>
+  <details><summary>Can the AI open something I didn't approve?</summary><p>No. It may only return ids from your own list. It never produces URLs or shell commands. The worst case is the wrong item from your list.</p></details>
+  <details><summary>What data do you collect?</summary><p>None. There's no server, account or analytics. Your key stays in your Keychain, and fuzzy commands go straight from your Mac to xAI (or the provider you chose).</p></details>
+  <details><summary>Can I use OpenAI or a local model instead of xAI?</summary><p>Yes. Any OpenAI-compatible API works: OpenAI, OpenRouter, Groq, or Ollama running on your Mac. Your xAI key is only ever sent to xAI.</p></details>
+  <details><summary>What's the difference between free and the Pro Kit?</summary><p>Every launcher feature is free and open source. The Pro Kit saves setup time: a double-click installer, 126 ready-made destinations, guides for each dictation app, Raycast and Stream Deck hooks, and a quick-start guide.</p></details>
+  <details><summary>Which Macs does it run on?</summary><p>macOS 13 or newer, Apple Silicon recommended. Tab switching works with Google Chrome today.</p></details>
+  <details><summary>Is it affiliated with xAI or Wispr?</summary><p>No. VoiceLauncher is independent. It works with their products using your own accounts.</p></details>
+</div>
+</section>
+
+<section id="privacy">
+<div class="wrap">
+  <h2>Private by default</h2>
+  <div class="privacy">
+    <div class="card"><h3>Key in your Keychain</h3><p>Read at call time, never logged or written to a file.</p></div>
+    <div class="card"><h3>No words in logs</h3><p>Logs record lengths and ids, never what you said.</p></div>
+    <div class="card"><h3>Only misses leave your Mac</h3><p>Sent straight to your AI provider with your list's names. Never page content. A local model keeps everything on your Mac.</p></div>
+  </div>
+</div>
+</section>
+</main>
+
+<footer><div class="wrap">
+  <div>Made by Jaan @ EVwire</div>
+  <div>
+    <a href="https://github.com/evwire/grok-voice-launcher/blob/main/PRIVACY.md">Privacy</a>
+    <a href="https://github.com/evwire/grok-voice-launcher/blob/main/TERMS.md">Terms</a>
+    <a href="https://github.com/evwire/grok-voice-launcher">GitHub</a>
+  </div>
+  <p class="disclaimer">VoiceLauncher is an independent open-source project, not affiliated with, endorsed by or sponsored by xAI or Wispr. xAI, Grok and Wispr Flow are trademarks of their respective owners and are named only to describe compatibility.</p>
+</div></footer>
+</body>
+</html>
