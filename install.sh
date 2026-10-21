@@ -1,5 +1,5 @@
 #!/bin/bash
-# Voice Launcher installer for macOS. Safe to run again (idempotent):
+# VoiceLauncher for Mac installer. Safe to run again (idempotent):
 #  - backs up every file it touches to ~/.voice-launcher/backups/<timestamp>/
 #  - never overwrites an existing destinations.json (use --rebuild-destinations to get a
 #    fresh suggestion written next to it)

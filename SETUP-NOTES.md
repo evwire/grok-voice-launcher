@@ -1,4 +1,4 @@
-# Voice Launcher – steps only you can do
+# VoiceLauncher for Mac – steps only you can do
 
 Run `./install.sh` first. It installs the code, builds your destination list from installed apps, sets up start-at-login and loads the launcher. These steps need you, because macOS asks a person to approve them or because they involve your own accounts.
 
@@ -16,7 +16,7 @@ Optional: in Hammerspoon → Preferences, untick "Show dock icon".
    Don't put the key on the command line itself, and never paste it into a chat with an assistant.
 3. To replace it later, run the same command. To remove it: `security delete-generic-password -s xai-voice-launcher -a "$USER"`.
 
-Without a key, exact names and aliases still work. Only free-form requests ("open my work chat and the bluetooth thing") need Grok.
+Without a key, exact names and aliases still work. Only free-form requests ("open my work chat and the bluetooth thing") need the xAI API (your own key).
 
 ## 3. Wispr Flow (or another dictation app)
 1. Install Wispr Flow (https://wisprflow.ai), sign in, and give it Microphone + Accessibility permissions when asked.
@@ -24,7 +24,7 @@ Without a key, exact names and aliases still work. Only free-form requests ("ope
 3. Without Wispr, any dictation works (macOS Dictation, typing). Hands-free mode then just opens the box.
 
 ## 4. Hands-free with Siri (optional)
-1. Open **Shortcuts** → **+** → name it **Voice Launcher** (not just "Launcher", because Siri hears that as "launch").
+1. Open **Shortcuts** → **+** → name it **Voice Launcher**, as two words (not just "Launcher", because Siri hears that as "launch"; and "VoiceLauncher" as one word is harder for Siri to match).
 2. Add the action **Open URLs** with `hammerspoon://voicelaunch`.
 3. Click ▶︎ once. When asked whether the Shortcut may open Hammerspoon, choose **Always Allow**.
 4. Say **"Hey Siri, Voice Launcher"**, wait for the box ("Listening…"), then say where to go, e.g. "Bluetooth". It listens for about 6 seconds; tap fn to finish sooner.

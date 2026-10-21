@@ -1,4 +1,6 @@
-# Voice Launcher – lessons learned (read before changing anything)
+# VoiceLauncher for Mac – lessons learned (read before changing anything)
+
+> Naming note: the product is called **VoiceLauncher** (formerly "Grok Voice Launcher"). Internal names stay as they were on purpose so existing installs keep working: `~/.voice-launcher/`, `~/.hammerspoon/voice-launcher.lua`, `require("voice-launcher")`, the `>>> voice-launcher >>>` init.lua markers, the Keychain service `xai-voice-launcher`, the `hammerspoon://voicelaunch` / `voicelaunch-reload` URLs and the "Voice Launcher" Siri Shortcut. Renaming any of them would need a migration step in install.sh.
 
 Built and debugged on a real Mac (macOS 26, Hammerspoon, Wispr Flow, xAI Grok), Oct 2026.
 Each item is a mistake we hit or a decision that worked. The kit already follows all of them.

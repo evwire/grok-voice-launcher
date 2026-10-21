@@ -1,4 +1,6 @@
--- Voice Launcher for macOS (Hammerspoon + any dictation app + xAI Grok)
+-- VoiceLauncher for Mac (Hammerspoon + any dictation app + your own xAI API key)
+-- Internal names (voice-launcher.lua, ~/.voice-launcher, Keychain "xai-voice-launcher",
+-- hammerspoon://voicelaunch) are kept on purpose so existing installs keep working.
 --
 -- Flow: hotkey (or "Hey Siri, Voice Launcher" -> hammerspoon://voicelaunch) opens a
 -- one-line text box -> you dictate (Wispr Flow by default) -> after a short pause the
@@ -461,7 +463,7 @@ function M.resolve(text, callback)
   addTabChoices(messages, tabs)
   local done = false
   local watchdog = hs.timer.doAfter(REQUEST_TIMEOUT, function()
-    if not done then done = true; callback(nil, "Grok API not answering") end
+    if not done then done = true; callback(nil, "xAI API not answering") end
   end)
   local function try(i)
     local model = cfg.models[i]
@@ -481,7 +483,7 @@ function M.resolve(text, callback)
       else
         done = true; watchdog:stop()
         local hint = (status == 401 or status == 403) and " – check the key in Keychain" or ""
-        callback(nil, "Grok API error (HTTP " .. tostring(status) .. ")" .. hint)
+        callback(nil, "xAI API error (HTTP " .. tostring(status) .. ")" .. hint)
       end
     end)
   end
@@ -533,7 +535,7 @@ local function pressWhenReady(appName, spec, coldStart)
   end
   local function attempt()
     if not hs.accessibilityState() then
-      hs.alert.show("Voice launcher needs Accessibility permission for Hammerspoon", 4)
+      hs.alert.show("VoiceLauncher needs Accessibility permission for Hammerspoon", 4)
       plog("no Accessibility permission"); return
     end
     local app, found = find()
@@ -615,7 +617,7 @@ local function run(text)
     for _, d in ipairs(dests or {}) do ids[#ids + 1] = d.id end
     vlog("run " .. said(text) .. " -> " ..
       (err and ("error: " .. err) or (tostring(via) .. " [" .. table.concat(ids, ",") .. "]")))
-    if err then hs.alert.show("Voice launcher: " .. err, 3); return end
+    if err then hs.alert.show("VoiceLauncher: " .. err, 3); return end
     if not dests or #dests == 0 then hs.alert.show("Didn't catch that: “" .. text .. "”", 2.5); return end
     openAll(dests)
   end)
@@ -711,7 +713,7 @@ function M.voice()
         vlog("no text arrived, closing box")
         voice.active = false
         chooser:hide()
-        hs.alert.show("Voice launcher: didn't catch anything", 2)
+        hs.alert.show("VoiceLauncher: didn't catch anything", 2)
       end
     end)
   end)
